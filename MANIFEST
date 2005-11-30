@@ -1,0 +1,26 @@
+inc/Module/Install.pm
+inc/Module/Install/Base.pm
+inc/Module/Install/Can.pm
+inc/Module/Install/Fetch.pm
+inc/Module/Install/Include.pm
+inc/Module/Install/Makefile.pm
+inc/Module/Install/Metadata.pm
+inc/Module/Install/Win32.pm
+inc/Module/Install/WriteAll.pm
+inc/Test/Depends.pm
+inc/Test/More.pm
+lib/Template/Plugin/Heritable.pm
+Makefile.PL
+MANIFEST			This list of files
+META.yml
+t/00-load.t
+t/01-direct-calls.t
+t/02-process-template.t
+t/03-inheritance.t
+t/FromDataProcess.pm
+t/TestModel.pm
+t/ttdir/a/att/foo
+t/ttdir/a/foo
+t/ttdir/b/att/foo
+t/ttdir/b/foo
+t/ttdir/object/types/string/foo
