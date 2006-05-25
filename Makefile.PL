@@ -13,7 +13,7 @@ recommends      ('T2' => 0.10);
 #recommends      ('Perl6::MetaModel' => 0);
 
 build_requires  ('Test::More');
-build_requires  ('Test::Depends');
+build_requires  ('Test::Depends' => 0.02);
 
 auto_include    (1);
 

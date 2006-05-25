@@ -4,7 +4,7 @@ package Template::Plugin::Heritable;
 use strict;
 use warnings;
 
-our $VERSION = "0.01";
+our $VERSION = "0.02";
 
 use base qw(Template::Plugin);
 
@@ -55,12 +55,12 @@ Eventually, no doubt these will be plugins.
 
 T2 is the Tangram MetaModel that also drives L<Class::Tangram>
 
-=item L<Perl6::MetaModel>
+=item L<Class::MOP>
 
-This module implements the Perl6 MetaModel in terms of Perl 5 objects,
-and can be found in L<pugs>.  Currently TODO as this is a first
-release, but the intention is that this module will be the second
-primary supported metamodel.
+Initial support for L<Class::MOP> classes.  Note that this is
+currently only tested with L<Moose>; in particular it assumes
+Moose-like type constraints.  If you want support for plain
+Class::MOP, please send a test case.
 
 =head1 CONSTRUCTION
 
@@ -82,7 +82,9 @@ with C<mypath/>.  Also, a custom method is specified to convert from
 "C<Foo::Bar>"-style class names to a C<Template::Provider> path.
 
 There is also a C<schema> object; this object is responsible for
-converting objects to classes.
+converting objects to classes.  If you are using C<Class::MOP>, you
+don't need to supply this; the metaclass is found via
+C<$object-E<gt>meta>.
 
 Normally, you wouldn't specify most of this this - and indeed there is
 the issue there that this configuration information perhaps doesn't
@@ -138,8 +140,10 @@ not found.
 C<.invoke> assumes that the metamodel object is either available as
 C<object.meta> or via C<$schema-E<gt>class(ref $object)>.  Convenient
 modules to make this Just Work™ with standard Perl 5 and 6
-objects/classes are yet to be written, but for T2 this should work
-fine.
+objects/classes are yet to be written, but for T2 and Class::MOP this
+should work fine.
+
+=head1 DISPATCH ALGORITHM
 
 To figure out which template should be called to perform a function,
 the class names are turned into L<Template::Provider> paths, with the
@@ -193,16 +197,60 @@ Either of these would then search for:
   foo/types/set/show.tt
   object/types/set/show.tt
 
-In principle, if an attribute's type is itself a type with an
+Using Class::MOP, if an attribute's type is itself a type with an
 inheritance chain, that those extra templates will also be added to
-the list of checked template locations.  This will apply later in
-later T2 versions and/or the Perl 6 MetaModel, when an actual type
-heirarchy is in place.
+the list of checked template locations.
+
+For instance, if you have two classes A and B, A having an attribute
+"att" of type "Str", and you write:
+
+  [% Heritable.invoke([ my_b, "att"], "show") %]
+
+Then you get this dispatch path:
+
+  b/att/show.tt
+  a/att/show.tt
+  moose/object/att/show.tt
+  object/att/show.tt
+
+  b/types/str/show.tt
+  a/types/str/show.tt
+  moose/object/types/str/show.tt
+  object/types/str/show.tt
+
+  b/types/value/show.tt
+  a/types/value/show.tt
+  moose/object/types/value/show.tt
+  object/types/value/show.tt
+
+  b/types/defined/show.tt
+  a/types/defined/show.tt
+  moose/object/types/defined/show.tt
+  object/types/defined/show.tt
+
+  b/types/item/show.tt
+  a/types/item/show.tt
+  moose/object/types/item/show.tt
+  object/types/item/show.tt
 
 =cut
 
 use Scalar::Util qw(blessed);
 use Carp qw(carp croak confess);
+
+sub _find_attribute {
+    my $class = shift;
+    my $attribute = shift;
+
+    if ( $class->can("class_precedence_list") ) {
+	my @found = map { $_->meta->get_attribute($attribute) }
+	    $class->class_precedence_list;
+	return $found[0];
+    } else {
+	$class->get_attribute($attribute) ||
+	    $class->get_association($attribute)
+    }
+}
 
 sub dispatch_paths {
     my $self = shift;
@@ -213,9 +261,8 @@ sub dispatch_paths {
     if ( ref $thingy and ref $thingy eq "ARRAY" ) {
 	($class, $property) = @$thingy;
 	if ( !blessed $property ) {
-	    my $t_property = ($class->get_attribute($property) ||
-			      $class->get_association($property))
-		or croak("class ".$class->get_name." has no property ".
+	    my $t_property = _find_attribute($class, $property)
+		or croak("class ".$class->name." has no property ".
 			 "'$property'");
 	    $property = $t_property;
 	}
@@ -223,14 +270,18 @@ sub dispatch_paths {
     elsif ( !blessed $thingy ) {
 	croak("'$thingy' is not even blessed, how can I dispatch?");
     }
+    elsif ( $thingy->can("class_precedence_list") ) {
+	$class = $thingy;
+    }
+    elsif ( $thingy->can("meta") ) {
+	$class = $thingy->meta;
+    }
     elsif ( $thingy->can("get_subclasses") ) {
 	$class = $thingy;
     }
     elsif ( $thingy->can("get_class") ) {
 	$class = $thingy->get_class;
 	$property = $thingy;
-    } else {
-	croak("don't know how to dispatch on a $thingy");
     }
 
     if ( $property ) {
@@ -261,7 +312,10 @@ sub _class_supers {
     my $class = shift or confess "no class passed to _class_supers";
 
     # get superclasses
-    my @class_order = $class;
+    my @class_order;
+    return map { $_->meta } $class->class_precedence_list
+	if $class->can("class_precedence_list");
+    @class_order = $class;
     my $head = $class;
     while ( $head = $head->get_superclass ) {
 	push @class_order, $head;
@@ -310,7 +364,7 @@ sub _class_dispatch_paths {
     my $tt = $self->tt_ext;
 
     return ( ( map {( $make_path->($_)."/$method$tt" )}
-	       (map { $_->get_name } @supers), "object" ),
+	       (map { $_->name } @supers), "object" ),
 	   );
 }
 
@@ -324,19 +378,53 @@ sub _attr_dispatch_paths {
 
     my $make_path = $self->class_attr2path;
 
-    my $att_name = $attribute->get_name;
-    my $type = $attribute->get_type;
+    my $att_name = $attribute->name;
+    my ($type, @extra_types);
+    if ( $attribute->can("has_type_constraint") ) {
+	if ( $attribute->has_type_constraint ) {
+	    $DB::single = 1;
+	    my $tc = $attribute->type_constraint;
+	    # there is some de-facto dispatch ordering logic happening
+	    # here
+	    my %seen;
+	    my $push;
+	    $push = sub {
+		my $type = shift;
+		return if $seen{$type}++;
+		push @extra_types, $type;
+		if ( UNIVERSAL::can($type, "meta") ) {
+		    $push->($_) for
+			map { $_->meta->name }
+			    $type->meta->class_precedence_list;
+		}
+	    };
+	    do {
+		$push->($tc->name);
+	    } while ( $tc = $tc->parent );
+	    $type = shift @extra_types;
+	} else {
+	    # hmm, everything has a type constraint really
+	    $type = "Item";
+	}
+    } else {
+	$type = $attribute->get_type;
+    }
     my $tt = $self->tt_ext;
 
-    return ( ( map {( $make_path->($_, $att_name)
-		      ."/$method$tt" )}
-	       (map { $_->get_name } @supers), "object"
-	     ),
-	     ( map {( $make_path->($_, $type, 1)
-		      ."/$method$tt" )}
-	       (map { $_->get_name } @supers), "object"
-	     ),
-	   );
+    my @paths = ( map {( $make_path->($_, $att_name)
+			 ."/$method$tt" )}
+		  (map { $_->name } @supers), "object"
+		);
+
+    while ( defined $type ) {
+	push @paths, ( map {( $make_path->($_, $type, 1)
+			      ."/$method$tt" )}
+		       (map { $_->name } @supers), "object"
+		     );
+	$type = shift @extra_types;
+    }
+
+    @paths;
 }
 
 sub dispatch {
@@ -356,6 +444,7 @@ sub include {
     my $method = shift;
     my $vars = shift || {};
 
+    $DB::single = 1 if $main::stop;
     my @paths = $self->dispatch_paths($invocant, $method);
 
     $self->_include_next($method, \@paths, @_);
@@ -469,9 +558,20 @@ Sam Vilain, <samv@cpan.org>
 
 =head1 LICENSE
 
-Copyright (c) 2005, Catalyst IT (NZ) Ltd.  This program is free
+Copyright (c) 2005, 2006, Catalyst IT (NZ) Ltd.  This program is free
 software; you may use it and/or redistribute it under the same terms
 as Perl itself.
+
+=head1 CHANGELOG
+
+=over
+
+=item C<0.02>
+
+Add support for C<Class::MOP>, though only C<Moose> classes are
+currently tested; new test cases welcome.
+
+=back
 
 =cut
 

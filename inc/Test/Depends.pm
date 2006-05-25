@@ -1,10 +1,14 @@
-#line 1 "inc/Test/Depends.pm - /usr/share/perl5/Test/Depends.pm"
+#line 1
 
 package Test::Depends;
 
-our $VERSION = 0.01;
+use strict 'vars', 'subs';
+use 5.006;
+use warnings;
 
-#line 21
+our $VERSION = 0.03;
+
+#line 24
 
 use Data::Dumper;
 
@@ -17,10 +21,11 @@ sub import {
     while ( my $package = shift ) {
 	my $eval = ("# line 0 \"Test::Depends generated\"\n"
 		    ."package $caller;\n");
-	my $import_args = "";
+	my $import = "";
 	my $wanted_version;
 	if ( ref $package and ref $package eq "ARRAY" ) {
 	    ($package, my @args) = (@$package);
+	    no warnings 'numeric';
 	    if ( @args == 1 and
 		 not ref $args[0] and
 		 ( $args[0]+0 != 0 or $args[0]+0 eq $args[0] )
@@ -63,6 +68,7 @@ sub import {
 			      ."failed to load:\n$err\n");
 	    }
 	} else {
+	    my $i;
 	    print "; ".join(", ", grep { !($i++ % 2) } @missing)."\n";
 	}
 	exit(0);
@@ -74,5 +80,5 @@ sub import {
 
 __END__
 
-#line 105
+#line 126
 

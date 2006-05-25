@@ -1,4 +1,4 @@
-#line 1 "inc/Test/More.pm - /home/samv/perl/lib/Test/More.pm"
+#line 1
 package Test::More;
 
 use 5.004;
@@ -36,7 +36,7 @@ use Test::Builder::Module;
             );
 
 
-#line 158
+#line 157
 
 sub plan {
     my $tb = Test::More->builder;
@@ -70,7 +70,7 @@ sub import_extra {
 }
 
 
-#line 258
+#line 257
 
 sub ok ($;$) {
     my($test, $name) = @_;
@@ -79,7 +79,7 @@ sub ok ($;$) {
     $tb->ok($test, $name);
 }
 
-#line 325
+#line 324
 
 sub is ($$;$) {
     my $tb = Test::More->builder;
@@ -96,7 +96,7 @@ sub isnt ($$;$) {
 *isn't = \&isnt;
 
 
-#line 370
+#line 369
 
 sub like ($$;$) {
     my $tb = Test::More->builder;
@@ -105,7 +105,7 @@ sub like ($$;$) {
 }
 
 
-#line 386
+#line 385
 
 sub unlike ($$;$) {
     my $tb = Test::More->builder;
@@ -114,7 +114,7 @@ sub unlike ($$;$) {
 }
 
 
-#line 426
+#line 425
 
 sub cmp_ok($$$;$) {
     my $tb = Test::More->builder;
@@ -123,7 +123,7 @@ sub cmp_ok($$$;$) {
 }
 
 
-#line 462
+#line 461
 
 sub can_ok ($@) {
     my($proto, @methods) = @_;
@@ -154,7 +154,7 @@ sub can_ok ($@) {
     return $ok;
 }
 
-#line 520
+#line 519
 
 sub isa_ok ($$;$) {
     my($object, $class, $obj_name) = @_;
@@ -209,7 +209,7 @@ WHOA
 }
 
 
-#line 590
+#line 589
 
 sub pass (;$) {
     my $tb = Test::More->builder;
@@ -221,7 +221,7 @@ sub fail (;$) {
     $tb->ok(0, @_);
 }
 
-#line 651
+#line 650
 
 sub use_ok ($;@) {
     my($module, @imports) = @_;
@@ -263,7 +263,7 @@ DIAGNOSTIC
     return $ok;
 }
 
-#line 700
+#line 699
 
 sub require_ok ($) {
     my($module) = shift;
@@ -306,7 +306,7 @@ sub _is_module_name {
     $module =~ /^[a-zA-Z]\w*$/;
 }
 
-#line 776
+#line 775
 
 use vars qw(@Data_Stack %Refs_Seen);
 my $DNE = bless [], 'Does::Not::Exist';
@@ -407,7 +407,7 @@ sub _type {
     return '';
 }
 
-#line 916
+#line 915
 
 sub diag {
     my $tb = Test::More->builder;
@@ -416,7 +416,7 @@ sub diag {
 }
 
 
-#line 985
+#line 984
 
 #'#
 sub skip {
@@ -439,7 +439,7 @@ sub skip {
 }
 
 
-#line 1067
+#line 1066
 
 sub todo_skip {
     my($why, $how_many) = @_;
@@ -460,7 +460,7 @@ sub todo_skip {
     last TODO;
 }
 
-#line 1120
+#line 1119
 
 sub BAIL_OUT {
     my $reason = shift;
@@ -469,7 +469,7 @@ sub BAIL_OUT {
     $tb->BAIL_OUT($reason);
 }
 
-#line 1159
+#line 1158
 
 #'#
 sub eq_array {
@@ -593,7 +593,7 @@ WHOA
 }
 
 
-#line 1290
+#line 1289
 
 sub eq_hash {
     local @Data_Stack;
@@ -626,7 +626,7 @@ sub _eq_hash {
     return $ok;
 }
 
-#line 1347
+#line 1346
 
 sub eq_set  {
     my($a1, $a2) = @_;
@@ -652,6 +652,6 @@ sub eq_set  {
     );
 }
 
-#line 1535
+#line 1534
 
 1;

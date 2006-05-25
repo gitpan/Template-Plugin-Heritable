@@ -1,18 +1,19 @@
-name: Template-Plugin-Heritable
-version: 0.01
 abstract: OO dispatching and inheritance for templates
 author: Sam Vilain <samv@cpan.org>
-license: perl
-distribution_type: module
-build_requires:
+build_requires: 
+  Test::Depends: 0.02
   Test::More: 0
-  Test::Depends: 0
-requires:
-  perl: 5.005
-  Template: 2
-recommends:
-  T2: 0.1
-no_index:
-  directory:
+distribution_type: module
+generated_by: Module::Install version 0.61
+license: perl
+name: Template-Plugin-Heritable
+no_index: 
+  directory: 
     - inc
-generated_by: Module::Install version 0.39
+    - t
+recommends: 
+  T2: 0.1
+requires: 
+  Template: 2
+  perl: 5.005
+version: 0.02
