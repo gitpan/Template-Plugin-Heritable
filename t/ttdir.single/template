@@ -1,0 +1,28 @@
+
+[% a_att_foo = BLOCK %]
+This is a/att/foo
+[% next_template() -%]
+[% END %]
+
+[% a_foo = BLOCK %]
+This is a/foo
+[% END %]
+
+[% b_att_foo = BLOCK %]
+This is b/att/foo
+[% next_template() -%]
+[% END %]
+
+[% b_foo = BLOCK %]
+This is b/foo
+[% next_template() -%]
+[% END %]
+
+[% object_types_str_foo = BLOCK %]
+This is object/types/str/foo
+[% END %]
+
+[% object_types_string_foo = BLOCK %]
+This is object/types/string/foo
+[% END %]
+

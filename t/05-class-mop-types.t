@@ -7,6 +7,7 @@ use Test::More tests => 7;
 
 use lib "t";
 use MooseTestModel;
+use ShutUpUcan;
 
 my $context = Test::MockObject->new();
 

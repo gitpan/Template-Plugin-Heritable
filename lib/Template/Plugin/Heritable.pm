@@ -4,7 +4,7 @@ package Template::Plugin::Heritable;
 use strict;
 use warnings;
 
-our $VERSION = "0.02";
+our $VERSION = "0.03";
 
 use base qw(Template::Plugin);
 
@@ -139,9 +139,20 @@ not found.
 
 C<.invoke> assumes that the metamodel object is either available as
 C<object.meta> or via C<$schema-E<gt>class(ref $object)>.  Convenient
-modules to make this Just Work™ with standard Perl 5 and 6
+modules to make this Just Work™ with standard Perl 6
 objects/classes are yet to be written, but for T2 and Class::MOP this
 should work fine.
+
+B<new in 0.03>: now supports 5.9.5+ 'mro' - if the symbol
+C<&mro::get_linear_isa> is defined at runtime (for instance, you used
+the L<mro> pragma or L<MRO::Compat> for earlier Perl versions), then
+this will work.  However, C<mro> does not cover types of attributes,
+so only C<invoke> with a method name (no attribute name) is currently
+supported.
+
+B<new in 0.03>: also supports DBIx::Class - pass
+L<DBIx::Class::ResultSource> objects to C<.include>, and
+L<DBIx::Class::Row> objects to C<.invoke>.
 
 =head1 DISPATCH ALGORITHM
 
@@ -233,6 +244,52 @@ Then you get this dispatch path:
   moose/object/types/item/show.tt
   object/types/item/show.tt
 
+B<New in Template::Heritable 0.03>: for convenience, the standard
+method for converting classes to "paths" can be customised, for
+instance if deep directory structures is inconvenient, and you like to
+be able to combine blocks into a single file, you can use:
+
+ [% USE Heritable({ path_delim = "_",
+                    use_blocks = 1    }) %]
+
+This would make the first part of the above dispatch list look like
+this:
+
+  b_att_show.tt
+  a_att_show.tt
+  moose_object_att_show.tt
+  object_att_show.tt
+  ...
+
+Not only that, but as C<use_blocks> is set, if by some strange
+co-incidence the module can find similarly named blocks, it will just
+call those instead;
+
+  [% b_att_show = BLOCK %]
+    Here we show some B attributes.  But we don't want to
+    miss out on showing the [% next_template() %]
+  [% END %]
+  [% a_att_show = BLOCK -%]
+    A attributes.
+  [% END %]
+
+With the above block definitions in scope, calling
+
+  [% Heritable.invoke([ my_b, "att"], "show") %]
+
+Would print:
+
+  Here we show some B attributes.  But we don't want to
+  miss out on showing the A attributes.
+
+And calling:
+
+  [% Heritable.invoke([ my_a, "att"], "show") %]
+
+Would print:
+
+  A attributes
+
 =cut
 
 use Scalar::Util qw(blessed);
@@ -243,10 +300,17 @@ sub _find_attribute {
     my $attribute = shift;
 
     if ( $class->can("class_precedence_list") ) {
-	my @found = map { $_->meta->get_attribute($attribute) }
-	    $class->class_precedence_list;
-	return $found[0];
-    } else {
+	for my $super ( $class->class_precedence_list ) {
+	    if ( my $att = $super->meta->get_attribute($attribute) ) {
+		 return $att;
+	    }
+	}
+	return undef;
+    }
+    elsif ( $class->can("column_info") ) {
+	return $class->column_info($attribute);
+    }
+    else {
 	$class->get_attribute($attribute) ||
 	    $class->get_association($attribute)
     }
@@ -264,17 +328,39 @@ sub dispatch_paths {
 	    my $t_property = _find_attribute($class, $property)
 		or croak("class ".$class->name." has no property ".
 			 "'$property'");
+	    if ( !blessed $t_property ) {
+		$t_property->{name} = $property;
+	    }
+	    my $schema;
+	    if ( !$self->ltrim and
+		 (eval { $schema = $class->schema; 1 })) {
+		$self->ltrim($schema);
+	    }
 	    $property = $t_property;
 	}
     }
     elsif ( !blessed $thingy ) {
-	croak("'$thingy' is not even blessed, how can I dispatch?");
+	if ( defined &mro::get_linear_isa ) {
+	    $class = $thingy;
+	}
+	else {
+	    croak("'$thingy' is not even blessed, how can I dispatch?");
+	}
     }
     elsif ( $thingy->can("class_precedence_list") ) {
 	$class = $thingy;
     }
     elsif ( $thingy->can("meta") ) {
 	$class = $thingy->meta;
+    }
+    elsif ( $thingy->can("result_class") ) {
+	#$class = $thingy->result_class;
+	$class = $thingy;
+	my $schema;
+	if ( !$self->ltrim and
+	     (eval { $schema = $thingy->schema; 1 })) {
+	    $self->ltrim($schema);
+	}
     }
     elsif ( $thingy->can("get_subclasses") ) {
 	$class = $thingy;
@@ -302,6 +388,16 @@ sub prefix {
     }
 }
 
+sub ltrim {
+    my $self = shift;
+    if ( @_ ) {
+	$self->{config}{ltrim} = shift;
+    } else {
+	my $ltrim = $self->{config}{ltrim} || "";
+	return $ltrim;
+    }
+}
+
 sub tt_ext {
     my $self = shift;
     $self->{context}{TEMPLATE_EXTENSION}||"";
@@ -310,6 +406,14 @@ sub tt_ext {
 sub _class_supers {
     my $self = shift;
     my $class = shift or confess "no class passed to _class_supers";
+
+    if ( blessed $class and $class->can("result_class") ) {
+	$class = $class->result_class;
+    }
+
+    if ( !ref $class ) {
+	return @{ mro::get_linear_isa($class) };
+    }
 
     # get superclasses
     my @class_order;
@@ -328,10 +432,15 @@ sub class2path {
     my $self = shift;
     return $self->{class2path} ||= do {
 	my $prefix = $self->prefix;
+	my $ltrim = $self->ltrim;
 	sub {
 	    ($prefix.
 	     ($self->{config}{class2path} || sub {
-		  (my $class = shift) =~ s{::}{/}g;
+		  my $class = shift;
+		  if ( $ltrim ) {
+		      $class =~ s{^(?:$ltrim)::}{};
+		  }
+		  $class =~ s{::}{/}g;
 		  $prefix.lc($class);
 	      })->(@_));
 	};
@@ -342,10 +451,15 @@ sub class_attr2path {
     my $self = shift;
     return $self->{class_attr2path} ||= do {
 	my $prefix = $self->prefix;
+	my $ltrim = $self->ltrim;
 	sub {
 	    ($prefix.
 	     ($self->{config}{class_attr2path} || sub {
-		  (my $class = shift) =~ s{::}{/}g;
+		  my $class = shift;
+		  if ( $ltrim ) {
+		      $class =~ s{^(?:$ltrim)::}{};
+		  }
+		  $class =~ s{::}{/}g;
 		  (my $what = shift) =~ s{::}{/}g;
 		  my $is_type = shift;
 		  $prefix.lc($class)."/".($is_type?"types/":"").lc($what);
@@ -364,7 +478,7 @@ sub _class_dispatch_paths {
     my $tt = $self->tt_ext;
 
     return ( ( map {( $make_path->($_)."/$method$tt" )}
-	       (map { $_->name } @supers), "object" ),
+	       (map { ref $_ ? $_->name : $_ } @supers), "object" ),
 	   );
 }
 
@@ -378,11 +492,11 @@ sub _attr_dispatch_paths {
 
     my $make_path = $self->class_attr2path;
 
-    my $att_name = $attribute->name;
+    my $att_name = blessed $attribute ? $attribute->name : $attribute->{name};
     my ($type, @extra_types);
-    if ( $attribute->can("has_type_constraint") ) {
+    if ( blessed $attribute and
+	 $attribute->can("has_type_constraint") ) {
 	if ( $attribute->has_type_constraint ) {
-	    $DB::single = 1;
 	    my $tc = $attribute->type_constraint;
 	    # there is some de-facto dispatch ordering logic happening
 	    # here
@@ -406,20 +520,23 @@ sub _attr_dispatch_paths {
 	    # hmm, everything has a type constraint really
 	    $type = "Item";
 	}
-    } else {
+    } elsif ( blessed $attribute) {
 	$type = $attribute->get_type;
+    }
+    else {
+	$type = $attribute->{data_type};
     }
     my $tt = $self->tt_ext;
 
     my @paths = ( map {( $make_path->($_, $att_name)
 			 ."/$method$tt" )}
-		  (map { $_->name } @supers), "object"
+		  (map { ref $_ ? $_->name : $_ } @supers), "object"
 		);
 
     while ( defined $type ) {
 	push @paths, ( map {( $make_path->($_, $type, 1)
 			      ."/$method$tt" )}
-		       (map { $_->name } @supers), "object"
+		       (map { ref $_ ? $_->name : $_ } @supers), "object"
 		     );
 	$type = shift @extra_types;
     }
@@ -444,26 +561,9 @@ sub include {
     my $method = shift;
     my $vars = shift || {};
 
-    $DB::single = 1 if $main::stop;
     my @paths = $self->dispatch_paths($invocant, $method);
 
     $self->_include_next($method, \@paths, @_);
-
-    #my $t;
-    #shift @paths while ($paths[0] and
-			#!($t = $self->{context}->template($paths[0])));
-#
-    #$self->{context}->throw
-	#("Couldn't find template method $method on $invocant")
-	    #unless @paths;
-#
-    #$vars->{next_template} = sub {
-	#$self->_include_next($method, \@paths, @_);
-    #};
-#
-    #my $output = $self->{context}->include($t, $vars);
-#
-    #return $output;
 }
 
 sub invoke {
@@ -482,10 +582,13 @@ sub invoke {
     my $class;
     if ( $object->can("meta") ) {
 	$class = $object->meta;
+    }
+    elsif ( $object->can("result_source_instance") ) {
+	$class = $object->result_source_instance;
     } elsif ( my $schema = $self->{config}{schema} ) {
 	$class = $schema->class(ref $object);
     } else {
-	croak("Can't invoke on '$object' - no .meta and no schema");
+	$class = ref $object;
     }
 
     return $self->include( ($property
@@ -566,7 +669,7 @@ as Perl itself.
 
 =over
 
-=item C<0.02>
+=item 0.02, 25 May 2006
 
 Add support for C<Class::MOP>, though only C<Moose> classes are
 currently tested; new test cases welcome.

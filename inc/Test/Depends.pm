@@ -6,7 +6,7 @@ use strict 'vars', 'subs';
 use 5.006;
 use warnings;
 
-our $VERSION = 0.03;
+our $VERSION = 0.06;
 
 #line 24
 
@@ -80,5 +80,5 @@ sub import {
 
 __END__
 
-#line 126
+#line 135
 
