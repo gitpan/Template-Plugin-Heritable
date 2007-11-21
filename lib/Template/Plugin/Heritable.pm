@@ -4,7 +4,7 @@ package Template::Plugin::Heritable;
 use strict;
 use warnings;
 
-our $VERSION = "0.03";
+our $VERSION = "0.04";
 
 use base qw(Template::Plugin);
 
@@ -42,18 +42,13 @@ This provides a form of inheritance for template display.
 
 The core of this is the I<template dispatch> mechanism, which deals in
 terms of a suitable metamodel class.  The module currently deals in
-the following metamodels; but no doubt you could fool it with modules
-which encapsulate other metamodels (such as Perl 5, L<NEXT>,
-L<Class::C3>, L<DBIx::Class::Schema>, etc) with minimal effort by
-conforming to one of their APIs.
-
-Eventually, no doubt these will be plugins.
+the following metamodels;
 
 =over 4
 
 =item L<T2::Class>
 
-T2 is the Tangram MetaModel that also drives L<Class::Tangram>
+T2 is a metamodel system for Tangram starting with L<Class::Tangram>.
 
 =item L<Class::MOP>
 
@@ -61,6 +56,33 @@ Initial support for L<Class::MOP> classes.  Note that this is
 currently only tested with L<Moose>; in particular it assumes
 Moose-like type constraints.  If you want support for plain
 Class::MOP, please send a test case.
+
+=item L<mro>
+
+Perl 5.10 introduces this module, allowing all classes to specify
+their I<method resolution order>.  This only provides enough
+information to call C<invoke> without an attribute name, for there is
+still no attribute type information available in Perl 5.
+
+=item L<DBIx::Class::ResultSet>
+
+A ResultSet is something akin to a class, but missing exactly what
+L<mro> isn't; it does not have inheritance.  The only thing that you
+can inherit over is the classes that were used to construct your
+model classes (ie, all the DBIx::Class internal classes).
+
+There is something of a case that sometimes, a one-to-one relationship
+is the same thing as an inheritance relationship.  However it is not
+guaranteed that is a correct interpretation of a one to one
+relationship; class dispatch does not use it, for instance.
+
+Anyway, it doesn't really matter - this "metamodel" is treated just
+the same as the L<mro> plugin when it comes to generating a list of
+classes that go into the dispatch_paths list.  The only thing this
+support does differently is know how to fetch the column types from
+the ResultSet definition of the class.
+
+=back
 
 =head1 CONSTRUCTION
 
@@ -105,8 +127,6 @@ the F<invoke> template might look like:
     Heritable.include(object.meta, method, { self = object }) -%]
 
 =cut
-
-use Class::Tangram;
 
 sub new {
     my $class = shift;
@@ -653,7 +673,7 @@ __END__
 
 =head1 SEE ALSO
 
-L<T2>, L<Template>.
+L<T2>, L<Template>, L<Class::MOP>, L<mro>, L<DBIx::Class::ResultSet>
 
 =head1 AUTHOR
 
@@ -661,13 +681,21 @@ Sam Vilain, <samv@cpan.org>
 
 =head1 LICENSE
 
-Copyright (c) 2005, 2006, Catalyst IT (NZ) Ltd.  This program is free
+Copyright (c) 2005-2007, Catalyst IT (NZ) Ltd.  This program is free
 software; you may use it and/or redistribute it under the same terms
 as Perl itself.
 
 =head1 CHANGELOG
 
 =over
+
+=item 0.04, 19 Nov 2007
+
+Minor release engineering fixes based on CPAN tester FAIL reports.
+
+=item 0.03, 19 Nov 2007
+
+Added support for L<mro>, L<DBIx::Class::ResultSet> APIs.
 
 =item 0.02, 25 May 2006
 
