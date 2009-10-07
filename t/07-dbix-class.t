@@ -23,12 +23,12 @@ is($output, "This is a/foo\n", ".invoke");
 my $context = Test::MockObject->new();
 my $tph = Template::Plugin::Heritable->new($context);
 
-is_deeply( [grep !m{^(dbix/class/|class/data/accessor/)},
+is_deeply( [grep !m{^(dbix/class/|class/(data/)?accessor/|class/c3/)},
 	    $tph->dispatch_paths($A, "foo")],
 	   [ qw(a/foo object/foo) ],
 	  "2 arg dispatch_paths");
 
-is_deeply( [grep !m{^(dbix/class/|class/data/accessor/)},
+is_deeply( [grep !m{^(dbix/class/|class/(data/)?accessor/|class/c3/)},
 	    $tph->dispatch_paths([$A, "att"], "foo")],
 	   ([ qw(a/att/foo
 		 object/att/foo

@@ -4,7 +4,7 @@ package Template::Plugin::Heritable;
 use strict;
 use warnings;
 
-our $VERSION = "0.04";
+our $VERSION = "0.05";
 
 use base qw(Template::Plugin);
 
@@ -432,7 +432,12 @@ sub _class_supers {
     }
 
     if ( !ref $class ) {
-	return @{ mro::get_linear_isa($class) };
+	if ( defined &mro::get_linear_isa ) {
+	    return @{ mro::get_linear_isa($class) };
+	}
+	else {
+	    carp "tried to get superclass of '$class', but ::mro is not loaded";
+	}
     }
 
     # get superclasses
@@ -688,6 +693,10 @@ as Perl itself.
 =head1 CHANGELOG
 
 =over
+
+=item 0.05, 8 Oct 2009
+
+Update tests for newer Moose and DBIx::Class
 
 =item 0.04, 19 Nov 2007
 

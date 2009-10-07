@@ -9,9 +9,12 @@ license         ('perl');
 requires        ('perl' => 5.005);
 requires        ('Template' => 2);
 
-recommends      ('T2' => 0.10);
-#recommends      ('Perl6::MetaModel' => 0);
+# this rule doesn't end up on CPAN's META.yml, sadly
+if ($] < 5.009005) {
+    recommends  ('MRO::Compat');
+}
 
+recommends	('Moose');
 build_requires  ('Test::More');
 
 include ("Test::Depends" => 0.05);

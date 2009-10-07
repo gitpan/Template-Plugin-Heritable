@@ -25,48 +25,35 @@ is_deeply( [$tph->dispatch_paths($B, "foo")],
 	   "2 arg dispatch_paths (subclass)" );
 
 my ($P1, $P2);
-is_deeply( [$tph->dispatch_paths([$A, $A->get_attribute("att")], "foo")],
-	   ($P1 = [ qw(a/att/foo
-		       moose/object/att/foo
-		       object/att/foo
-		       a/types/str/foo
-		       moose/object/types/str/foo
-		       object/types/str/foo
-		       a/types/value/foo
-		       moose/object/types/value/foo
-		       object/types/value/foo
-		       a/types/defined/foo
-		       moose/object/types/defined/foo
-		       object/types/defined/foo
-		       a/types/item/foo
-		       moose/object/types/item/foo
-		       object/types/item/foo
-		      ) ]),
-	   "3 arg dispatch_paths");
+($P1 = [ qw(a/att/foo moose/object/att/foo object/att/foo
+a/types/str/foo moose/object/types/str/foo object/types/str/foo
+a/types/value/foo moose/object/types/value/foo object/types/value/foo
+a/types/defined/foo moose/object/types/defined/foo object/types/defined/foo
+a/types/item/foo moose/object/types/item/foo object/types/item/foo
+a/types/any/foo moose/object/types/any/foo object/types/any/foo
+) ]);
+my $got = [$tph->dispatch_paths([$A, $A->get_attribute("att")], "foo")];
+my $no_any;
+if ($Moose::VERSION <= 0.54 or ($Moose::VERSION < 0.88 and not grep m{/any/}, @$got)) {
+	@$P1 = grep !m{/any/}, @$P1;
+	$no_any = 1;
+}
+is_deeply( $got, $P1, "3 arg dispatch_paths");
 
-is_deeply( [$tph->dispatch_paths([$B, $A->get_attribute("att")], "foo")],
-	   ($P2 = [ qw(b/att/foo
-		       a/att/foo
-		       moose/object/att/foo
-		       object/att/foo
-		       b/types/str/foo
-		       a/types/str/foo
-		       moose/object/types/str/foo
-		       object/types/str/foo
-		       b/types/value/foo
-		       a/types/value/foo
-		       moose/object/types/value/foo
-		       object/types/value/foo
-		       b/types/defined/foo
-		       a/types/defined/foo
-		       moose/object/types/defined/foo
-		       object/types/defined/foo
-		       b/types/item/foo
-		       a/types/item/foo
-		       moose/object/types/item/foo
-		       object/types/item/foo
-		      ) ]),
-	   "3 arg dispatch_paths (subclass)");
+$got = [$tph->dispatch_paths([$B, $A->get_attribute("att")], "foo")];
+
+($P2 = [ qw(b/att/foo a/att/foo moose/object/att/foo object/att/foo
+b/types/str/foo a/types/str/foo moose/object/types/str/foo object/types/str/foo
+b/types/value/foo a/types/value/foo moose/object/types/value/foo object/types/value/foo
+b/types/defined/foo a/types/defined/foo moose/object/types/defined/foo object/types/defined/foo
+b/types/item/foo a/types/item/foo moose/object/types/item/foo object/types/item/foo
+b/types/any/foo a/types/any/foo moose/object/types/any/foo object/types/any/foo
+		      ) ]);
+if ($no_any) {
+	@$P2 = grep !m{/any/}, @$P2;
+}
+
+is_deeply( $got, $P2, "3 arg dispatch_paths (subclass)");
 
 is_deeply( [$tph->dispatch_paths([$A, "att"], "foo")],
 	   $P1,
